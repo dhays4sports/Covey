@@ -1,0 +1,14 @@
+{
+  "name": "coveragefit",
+  "version": "3.20.60",
+  "private": true,
+  "description": "CoverageFit consultation-first Agent Workspace and Consultation Document with HOME-2.9 mobile, WCAG-oriented accessibility, bounded performance, and preserved Home journey continuity.",
+  "scripts": {
+    "test": "node RUN_REGRESSION_SUITE.js",
+    "cloudflare:dev": "wrangler pages dev .",
+    "cloudflare:functions:build": "wrangler pages functions build --outdir=.cloudflare/functions-dist"
+  },
+  "devDependencies": {
+    "wrangler": "4.114.0"
+  }
+}
