@@ -20,10 +20,35 @@ import { handleSmsOperations } from './sms-operations-core.mjs';
 import { createConsultationStore, createProspectReportStore, createReferralLinkStore, createReferralEventStore, createSmsConversationStore, createSmsHandoffStore } from './d1-json-store.mjs';
 import { withD1RateLimit } from './cloudflare-rate-limit.mjs';
 
-function consultationOptions(context) {
+export async function resolveProducerEnvironment(sourceEnv = {}) {
+  const binding = sourceEnv?.COVERAGEFIT_PRODUCER_ACCESS_TOKEN;
+  if (typeof binding === 'string') return sourceEnv;
+  if (!binding || typeof binding.get !== 'function') return sourceEnv;
+
+  let token = '';
+  try {
+    token = await binding.get();
+  } catch (_) {
+    return sourceEnv;
+  }
+  if (typeof token !== 'string') return sourceEnv;
+
+  return new Proxy(sourceEnv, {
+    get(target, property, receiver) {
+      if (property === 'COVERAGEFIT_PRODUCER_ACCESS_TOKEN') return token;
+      return Reflect.get(target, property, receiver);
+    }
+  });
+}
+
+function withProducerEnvironment(context, callback) {
+  return resolveProducerEnvironment(context.env || {}).then(callback);
+}
+
+function consultationOptions(context, resolvedEnv = context.env || {}) {
   return {
-    store: context.env?.COVERAGEFIT_DB ? createConsultationStore(context.env.COVERAGEFIT_DB) : null,
-    env: context.env || {},
+    store: resolvedEnv.COVERAGEFIT_DB ? createConsultationStore(resolvedEnv.COVERAGEFIT_DB) : null,
+    env: resolvedEnv,
     waitUntil: typeof context.waitUntil === 'function' ? context.waitUntil.bind(context) : null
   };
 }
@@ -37,11 +62,11 @@ function reportOptions(context) {
 }
 
 
-function smsOptions(context) {
+function smsOptions(context, resolvedEnv = context.env || {}) {
   return {
-    store: context.env?.COVERAGEFIT_DB ? createSmsConversationStore(context.env.COVERAGEFIT_DB) : null,
-    handoffStore: context.env?.COVERAGEFIT_DB ? createSmsHandoffStore(context.env.COVERAGEFIT_DB) : null,
-    env: context.env || {},
+    store: resolvedEnv.COVERAGEFIT_DB ? createSmsConversationStore(resolvedEnv.COVERAGEFIT_DB) : null,
+    handoffStore: resolvedEnv.COVERAGEFIT_DB ? createSmsHandoffStore(resolvedEnv.COVERAGEFIT_DB) : null,
+    env: resolvedEnv,
     waitUntil: typeof context.waitUntil === 'function' ? context.waitUntil.bind(context) : null
   };
 }
@@ -63,50 +88,66 @@ export function consultationSubmit(context) {
 }
 
 export function consultationInbox(context) {
-  return withD1RateLimit(context, { route: 'consultation-inbox', limit: 60, windowSeconds: 60 }, () =>
-    handleConsultationInbox(context.request, consultationOptions(context))
+  return withProducerEnvironment(context, env =>
+    withD1RateLimit(context, { route: 'consultation-inbox', limit: 60, windowSeconds: 60 }, () =>
+      handleConsultationInbox(context.request, consultationOptions(context, env))
+    )
   );
 }
 
 export function consultationStatus(context) {
-  return withD1RateLimit(context, { route: 'consultation-status', limit: 120, windowSeconds: 60 }, () =>
-    handleConsultationStatus(context.request, consultationOptions(context))
+  return withProducerEnvironment(context, env =>
+    withD1RateLimit(context, { route: 'consultation-status', limit: 120, windowSeconds: 60 }, () =>
+      handleConsultationStatus(context.request, consultationOptions(context, env))
+    )
   );
 }
 
 export function consultationFollowUp(context) {
-  return withD1RateLimit(context, { route: 'consultation-follow-up', limit: 120, windowSeconds: 60 }, () =>
-    handleConsultationFollowUp(context.request, consultationOptions(context))
+  return withProducerEnvironment(context, env =>
+    withD1RateLimit(context, { route: 'consultation-follow-up', limit: 120, windowSeconds: 60 }, () =>
+      handleConsultationFollowUp(context.request, consultationOptions(context, env))
+    )
   );
 }
 
 export function consultationActivity(context) {
-  return withD1RateLimit(context, { route: 'consultation-activity', limit: 180, windowSeconds: 60 }, () =>
-    handleConsultationActivity(context.request, consultationOptions(context))
+  return withProducerEnvironment(context, env =>
+    withD1RateLimit(context, { route: 'consultation-activity', limit: 180, windowSeconds: 60 }, () =>
+      handleConsultationActivity(context.request, consultationOptions(context, env))
+    )
   );
 }
 
 export function consultationDisposition(context) {
-  return withD1RateLimit(context, { route: 'consultation-disposition', limit: 120, windowSeconds: 60 }, () =>
-    handleConsultationDisposition(context.request, consultationOptions(context))
+  return withProducerEnvironment(context, env =>
+    withD1RateLimit(context, { route: 'consultation-disposition', limit: 120, windowSeconds: 60 }, () =>
+      handleConsultationDisposition(context.request, consultationOptions(context, env))
+    )
   );
 }
 
 export function consultationRecommendations(context) {
-  return withD1RateLimit(context, { route: 'consultation-recommendations', limit: 120, windowSeconds: 60 }, () =>
-    handleConsultationRecommendations(context.request, consultationOptions(context))
+  return withProducerEnvironment(context, env =>
+    withD1RateLimit(context, { route: 'consultation-recommendations', limit: 120, windowSeconds: 60 }, () =>
+      handleConsultationRecommendations(context.request, consultationOptions(context, env))
+    )
   );
 }
 
 export function consultationCompletion(context) {
-  return withD1RateLimit(context, { route: 'consultation-completion', limit: 120, windowSeconds: 60 }, () =>
-    handleConsultationCompletion(context.request, consultationOptions(context))
+  return withProducerEnvironment(context, env =>
+    withD1RateLimit(context, { route: 'consultation-completion', limit: 120, windowSeconds: 60 }, () =>
+      handleConsultationCompletion(context.request, consultationOptions(context, env))
+    )
   );
 }
 
 export function consultationChecklist(context) {
-  return withD1RateLimit(context, { route: 'consultation-checklist', limit: 180, windowSeconds: 60 }, () =>
-    handleConsultationChecklist(context.request, consultationOptions(context))
+  return withProducerEnvironment(context, env =>
+    withD1RateLimit(context, { route: 'consultation-checklist', limit: 180, windowSeconds: 60 }, () =>
+      handleConsultationChecklist(context.request, consultationOptions(context, env))
+    )
   );
 }
 
@@ -144,8 +185,10 @@ export function referralEvent(context) {
 
 
 export function smsSimulator(context) {
-  return withD1RateLimit(context, { route: 'sms-simulator', limit: 180, windowSeconds: 60 }, () =>
-    handleSmsSimulator(context.request, smsOptions(context))
+  return withProducerEnvironment(context, env =>
+    withD1RateLimit(context, { route: 'sms-simulator', limit: 180, windowSeconds: 60 }, () =>
+      handleSmsSimulator(context.request, smsOptions(context, env))
+    )
   );
 }
 
@@ -162,15 +205,19 @@ export function smsHandoffRead(context) {
 
 
 export function smsProducerHandoff(context) {
-  return withD1RateLimit(context, { route: 'sms-producer-handoff', limit: 120, windowSeconds: 60 }, () =>
-    handleSmsProducerHandoff(context.request, smsOptions(context))
+  return withProducerEnvironment(context, env =>
+    withD1RateLimit(context, { route: 'sms-producer-handoff', limit: 120, windowSeconds: 60 }, () =>
+      handleSmsProducerHandoff(context.request, smsOptions(context, env))
+    )
   );
 }
 
 
 export function smsOperations(context) {
-  return withD1RateLimit(context, { route: 'sms-operations', limit: 120, windowSeconds: 60 }, () =>
-    handleSmsOperations(context.request, smsOptions(context))
+  return withProducerEnvironment(context, env =>
+    withD1RateLimit(context, { route: 'sms-operations', limit: 120, windowSeconds: 60 }, () =>
+      handleSmsOperations(context.request, smsOptions(context, env))
+    )
   );
 }
 
@@ -179,13 +226,17 @@ export function ringCentralSmsWebhook(context) {
 }
 
 export function ringCentralSmsStatus(context) {
-  return withD1RateLimit(context, { route: 'ringcentral-sms-status', limit: 30, windowSeconds: 60 }, () =>
-    handleRingCentralStatus(context.request, smsOptions(context))
+  return withProducerEnvironment(context, env =>
+    withD1RateLimit(context, { route: 'ringcentral-sms-status', limit: 30, windowSeconds: 60 }, () =>
+      handleRingCentralStatus(context.request, smsOptions(context, env))
+    )
   );
 }
 
 export function ringCentralSmsSubscription(context) {
-  return withD1RateLimit(context, { route: 'ringcentral-sms-subscription', limit: 10, windowSeconds: 60 }, () =>
-    handleRingCentralSubscription(context.request, smsOptions(context))
+  return withProducerEnvironment(context, env =>
+    withD1RateLimit(context, { route: 'ringcentral-sms-subscription', limit: 10, windowSeconds: 60 }, () =>
+      handleRingCentralSubscription(context.request, smsOptions(context, env))
+    )
   );
 }
